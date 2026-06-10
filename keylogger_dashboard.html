@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KeyWatch — Live Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg:        #050a0e;
+    --panel:     #0b1318;
+    --border:    #0f3d2e;
+    --glow:      #00ff88;
+    --glow-dim:  #00cc6a;
+    --glow-faint:#003d22;
+    --accent:    #ff3c6e;
+    --text:      #c8fce8;
+    --muted:     #3d6b55;
+    --special-bg:#0d2233;
+    --special:   #00cfff;
+    --system:    #ffd700;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.08) 2px,
+      rgba(0,0,0,.08) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--panel);
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.4rem;
+    letter-spacing: .15em;
+    color: var(--glow);
+    text-shadow: 0 0 12px var(--glow), 0 0 30px var(--glow-dim);
+  }
+
+  .logo span { color: var(--accent); }
+
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .status-dot.live {
+    background: var(--glow);
+    box-shadow: 0 0 8px var(--glow);
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .3; }
+  }
+
+  #status-text {
+    font-size: .78rem;
+    color: var(--muted);
+    letter-spacing: .06em;
+  }
+
+  .spacer { flex: 1; }
+
+  .stats {
+    display: flex;
+    gap: 28px;
+  }
+  .stat {
+    text-align: center;
+    line-height: 1.2;
+  }
+  .stat-val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--glow);
+    text-shadow: 0 0 8px var(--glow-dim);
+  }
+  .stat-lbl {
+    font-size: .6rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Main layout ── */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* ── Key stream ── */
+  #stream-wrap {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .panel-title {
+    padding: 10px 20px;
+    font-size: .65rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  #stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  #stream::-webkit-scrollbar { width: 4px; }
+  #stream::-webkit-scrollbar-track { background: transparent; }
+  #stream::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border-left: 2px solid transparent;
+    animation: fadeIn .12s ease-out;
+    font-size: .88rem;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .entry.char {
+    border-color: var(--glow-faint);
+  }
+  .entry.char:hover {
+    background: rgba(0,255,136,.05);
+  }
+  .entry.special {
+    border-color: rgba(0,207,255,.2);
+    background: rgba(0,207,255,.04);
+  }
+  .entry.system {
+    border-color: rgba(255,215,0,.3);
+    background: rgba(255,215,0,.04);
+  }
+
+  .e-time {
+    color: var(--muted);
+    font-size: .72rem;
+    min-width: 62px;
+    flex-shrink: 0;
+  }
+
+  .e-key {
+    flex: 1;
+    font-size: .95rem;
+  }
+  .entry.char   .e-key { color: var(--text); }
+  .entry.special .e-key {
+    color: var(--special);
+    font-size: .78rem;
+    letter-spacing: .06em;
+    background: var(--special-bg);
+    padding: 1px 8px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .entry.system .e-key { color: var(--system); font-size: .78rem; }
+
+  .e-idx {
+    color: var(--muted);
+    font-size: .65rem;
+    min-width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── Key heatmap tiles ── */
+  #heatmap-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    max-height: 260px;
+  }
+
+  #heatmap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-content: flex-start;
+  }
+  #heatmap::-webkit-scrollbar { width: 3px; }
+  #heatmap::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .tile {
+    width: 38px;
+    height: 38px;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    transition: background .3s, border-color .3s;
+    cursor: default;
+    position: relative;
+  }
+  .tile .t-key {
+    font-size: .82rem;
+    line-height: 1;
+    color: var(--text);
+  }
+  .tile .t-cnt {
+    font-size: .58rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── Recent word/phrase box ── */
+  #phrase-wrap {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #phrase {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-size: .85rem;
+    color: var(--text);
+    line-height: 1.8;
+    word-break: break-all;
+  }
+  #phrase::-webkit-scrollbar { width: 3px; }
+  #phrase::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .cursor-blink {
+    display: inline-block;
+    width: 8px; height: 1em;
+    background: var(--glow);
+    vertical-align: text-bottom;
+    animation: blink .8s step-end infinite;
+    margin-left: 2px;
+    box-shadow: 0 0 6px var(--glow);
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* ── Footer ── */
+  footer {
+    padding: 6px 20px;
+    border-top: 1px solid var(--border);
+    font-size: .62rem;
+    color: var(--muted);
+    letter-spacing: .08em;
+    background: var(--panel);
+    display: flex;
+    gap: 24px;
+  }
+  footer span { opacity: .6; }
+
+  /* ── Empty state ── */
+  #empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 10px;
+    color: var(--muted);
+    font-size: .82rem;
+    letter-spacing: .06em;
+    opacity: .5;
+  }
+  #empty .big { font-size: 2.4rem; opacity: .3; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Key<span>Watch</span></div>
+  <div class="status-dot" id="dot"></div>
+  <div id="status-text">CONNECTING…</div>
+  <div class="spacer"></div>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-val" id="cnt-total">0</div>
+      <div class="stat-lbl">Total Keys</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="cnt-kpm">0</div>
+      <div class="stat-lbl">Keys/min</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val" id="cnt-special">0</div>
+      <div class="stat-lbl">Special</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Stream -->
+  <div id="stream-wrap">
+    <div class="panel-title">▶ LIVE KEYSTROKE STREAM</div>
+    <div id="stream">
+      <div id="empty">
+        <div class="big">⌨</div>
+        <div>Waiting for keystrokes…</div>
+        <div style="font-size:.7rem;margin-top:4px;">Make sure keylogger.py is running</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap -->
+  <div id="heatmap-wrap">
+    <div class="panel-title">■ KEY FREQUENCY</div>
+    <div id="heatmap"></div>
+  </div>
+
+  <!-- Live phrase -->
+  <div id="phrase-wrap">
+    <div class="panel-title">✦ LIVE TEXT</div>
+    <div id="phrase"><span class="cursor-blink"></span></div>
+  </div>
+</main>
+
+<footer>
+  <span>KeyWatch v1.0</span>
+  <span id="ws-addr">ws://localhost:8765</span>
+  <span id="foot-time"></span>
+</footer>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let totalKeys   = 0;
+let specialKeys = 0;
+let entryIndex  = 0;
+const freqMap   = {};          // key → count
+const timestamps = [];         // for KPM
+let liveText    = "";          // current phrase buffer
+let ws          = null;
+let reconnectTimer = null;
+
+// ── DOM refs ─────────────────────────────────────────────────
+const stream     = document.getElementById("stream");
+const empty      = document.getElementById("empty");
+const heatmap    = document.getElementById("heatmap");
+const phrase     = document.getElementById("phrase");
+const dot        = document.getElementById("dot");
+const statusText = document.getElementById("status-text");
+const cntTotal   = document.getElementById("cnt-total");
+const cntKpm     = document.getElementById("cnt-kpm");
+const cntSpecial = document.getElementById("cnt-special");
+
+// ── WebSocket ────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket("ws://localhost:8765");
+
+  ws.onopen = () => {
+    dot.classList.add("live");
+    statusText.textContent = "LIVE";
+    statusText.style.color = "var(--glow)";
+    clearTimeout(reconnectTimer);
+  };
+
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    handleKey(data);
+  };
+
+  ws.onclose = () => {
+    dot.classList.remove("live");
+    statusText.textContent = "DISCONNECTED — retrying…";
+    statusText.style.color = "var(--accent)";
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+// ── Handle incoming key ──────────────────────────────────────
+function handleKey(data) {
+  const { key, type, timestamp } = data;
+
+  // Remove empty state
+  if (empty.parentNode) empty.remove();
+
+  // ── Counters
+  totalKeys++;
+  if (type === "special") specialKeys++;
+  cntTotal.textContent   = totalKeys;
+  cntSpecial.textContent = specialKeys;
+
+  // ── KPM (rolling 60s window)
+  const now = Date.now();
+  timestamps.push(now);
+  while (timestamps.length && timestamps[0] < now - 60000) timestamps.shift();
+  cntKpm.textContent = timestamps.length;
+
+  // ── Stream entry
+  entryIndex++;
+  const entry = document.createElement("div");
+  entry.className = `entry ${type}`;
+  entry.innerHTML = `
+    <span class="e-time">${timestamp}</span>
+    <span class="e-key">${escHtml(key)}</span>
+    <span class="e-idx">#${entryIndex}</span>
+  `;
+  stream.appendChild(entry);
+  stream.scrollTop = stream.scrollHeight;
+
+  // ── Heatmap
+  if (type !== "system") {
+    const k = key.toUpperCase();
+    freqMap[k] = (freqMap[k] || 0) + 1;
+    updateHeatmap(k);
+  }
+
+  // ── Live phrase
+  if (type === "char") {
+    liveText += key;
+    updatePhrase();
+  } else if (type === "special") {
+    if (key === "BACKSPACE") {
+      liveText = liveText.slice(0, -1);
+      updatePhrase();
+    } else if (key === "ENTER" || key === "RETURN") {
+      liveText += "\n";
+      updatePhrase();
+    } else if (key === "SPACE") {
+      liveText += " ";
+      updatePhrase();
+    } else if (key === "TAB") {
+      liveText += "    ";
+      updatePhrase();
+    }
+  }
+}
+
+// ── Heatmap update ───────────────────────────────────────────
+function updateHeatmap(k) {
+  let tile = document.getElementById("tile-" + CSS.escape(k));
+  const maxCount = Math.max(...Object.values(freqMap));
+
+  if (!tile) {
+    tile = document.createElement("div");
+    tile.className = "tile";
+    tile.id = "tile-" + k;
+    tile.innerHTML = `<span class="t-key">${escHtml(k)}</span><span class="t-cnt">0</span>`;
+    heatmap.appendChild(tile);
+  }
+
+  const cnt = freqMap[k];
+  tile.querySelector(".t-cnt").textContent = cnt;
+
+  // Color intensity
+  const ratio = cnt / maxCount;
+  const alpha = 0.1 + ratio * 0.55;
+  tile.style.background = `rgba(0,255,136,${alpha})`;
+  tile.style.borderColor = `rgba(0,255,136,${0.2 + ratio * 0.8})`;
+  tile.style.color = ratio > 0.6 ? "#050a0e" : "var(--text)";
+
+  // Re-sort tiles by count
+  const tiles = [...heatmap.querySelectorAll(".tile")];
+  tiles.sort((a,b) => {
+    const ka = a.id.replace("tile-","");
+    const kb = b.id.replace("tile-","");
+    return (freqMap[kb]||0) - (freqMap[ka]||0);
+  });
+  tiles.forEach(t => heatmap.appendChild(t));
+}
+
+// ── Live phrase ───────────────────────────────────────────────
+function updatePhrase() {
+  // Show last 300 chars
+  const display = liveText.slice(-300);
+  phrase.innerHTML = escHtml(display).replace(/\n/g, "<br>") +
+    '<span class="cursor-blink"></span>';
+  phrase.scrollTop = phrase.scrollHeight;
+}
+
+// ── Util ─────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Clock ────────────────────────────────────────────────────
+function tick() {
+  document.getElementById("foot-time").textContent =
+    new Date().toLocaleTimeString();
+}
+setInterval(tick, 1000);
+tick();
+
+// ── Boot ─────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>

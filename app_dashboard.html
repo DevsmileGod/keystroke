@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AppWatch — App Usage Tracker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+:root{
+  --bg:#f0f2f5;
+  --card:#ffffff;
+  --border:#e2e6ea;
+  --text:#1a202c;
+  --muted:#718096;
+  --accent:#6366f1;
+  --accent2:#8b5cf6;
+  --green:#10b981;
+  --amber:#f59e0b;
+  --red:#ef4444;
+  --blue:#3b82f6;
+  --pink:#ec4899;
+  --teal:#14b8a6;
+  --orange:#f97316;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Plus Jakarta Sans',sans-serif;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+}
+
+/* ── Header ── */
+header{
+  background:var(--card);
+  border-bottom:1px solid var(--border);
+  padding:14px 28px;
+  display:flex;align-items:center;gap:14px;
+}
+.logo{
+  font-weight:700;font-size:1.15rem;
+  color:var(--accent);letter-spacing:-.01em;
+}
+.logo em{color:var(--text);font-style:normal;}
+
+.badge{
+  font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:3px 10px;border-radius:99px;
+  background:#fef3c7;color:#d97706;border:1px solid #fde68a;
+}
+.badge.live{background:#d1fae5;color:#059669;border-color:#a7f3d0;}
+
+#hdr-app{
+  font-size:.78rem;color:var(--muted);
+  max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.spacer{flex:1;}
+
+.stat-chips{display:flex;gap:20px;}
+.chip{
+  background:var(--bg);border-radius:8px;padding:6px 14px;
+  text-align:center;border:1px solid var(--border);
+}
+.chip-val{font-weight:700;font-size:1rem;color:var(--accent);}
+.chip-lbl{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+
+/* ── Main ── */
+main{
+  flex:1;display:grid;
+  grid-template-columns:1fr 340px;
+  gap:18px;padding:18px 24px;
+  overflow:auto;
+}
+
+/* ── Card ── */
+.card{
+  background:var(--card);
+  border-radius:12px;
+  border:1px solid var(--border);
+  padding:18px 20px;
+  display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+}
+.card-title{
+  font-weight:600;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);display:flex;align-items:center;gap:8px;
+}
+
+/* ── App rows ── */
+.app-row{
+  display:flex;align-items:center;gap:12px;
+  padding:8px 0;
+  border-bottom:1px solid var(--border);
+}
+.app-row:last-child{border-bottom:none;}
+
+.app-icon{
+  width:34px;height:34px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.9rem;font-weight:700;color:#fff;
+  flex-shrink:0;font-family:'Fira Code',monospace;
+}
+
+.app-name{font-weight:600;font-size:.85rem;line-height:1.2;}
+.app-time{font-size:.72rem;color:var(--muted);font-family:'Fira Code',monospace;}
+
+.app-right{margin-left:auto;text-align:right;flex-shrink:0;}
+.app-pct{font-weight:700;font-size:.9rem;}
+
+.app-bar-wrap{
+  height:4px;background:var(--border);border-radius:2px;margin-top:5px;
+  width:80px;margin-left:auto;overflow:hidden;
+}
+.app-bar{height:100%;border-radius:2px;transition:width .6s ease;}
+
+/* ── Current app highlight ── */
+.current-card{
+  background:linear-gradient(135deg,#6366f1,#8b5cf6);
+  color:#fff;border:none;
+}
+.current-card .card-title{color:rgba(255,255,255,.7);}
+.current-app-name{
+  font-weight:700;font-size:1.4rem;letter-spacing:-.02em;
+}
+.current-title{
+  font-size:.75rem;opacity:.7;
+  font-family:'Fira Code',monospace;
+  margin-top:4px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.current-time{
+  font-family:'Fira Code',monospace;
+  font-size:1.8rem;font-weight:500;
+  margin-top:8px;opacity:.9;
+}
+.current-since{font-size:.7rem;opacity:.6;margin-top:2px;}
+
+/* ── Donut chart ── */
+.donut-wrap{
+  display:flex;align-items:center;justify-content:center;gap:20px;
+}
+#donut{overflow:visible;}
+.legend{display:flex;flex-direction:column;gap:7px;}
+.leg-row{display:flex;align-items:center;gap:7px;font-size:.72rem;}
+.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.leg-name{color:var(--text);font-weight:500;}
+.leg-pct{color:var(--muted);margin-left:auto;font-family:'Fira Code',monospace;}
+
+/* ── Timeline ── */
+.timeline-bar{
+  display:flex;height:28px;border-radius:6px;overflow:hidden;
+  margin-top:4px;
+}
+.tl-seg{
+  height:100%;transition:flex .5s ease;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.55rem;color:rgba(255,255,255,.8);overflow:hidden;
+  white-space:nowrap;
+}
+
+/* ── Footer ── */
+footer{
+  padding:7px 24px;font-size:.62rem;color:var(--muted);
+  background:var(--card);border-top:1px solid var(--border);
+  display:flex;gap:20px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">App<em>Watch</em></div>
+  <div class="badge" id="badge">OFFLINE</div>
+  <div id="hdr-app">Waiting for data…</div>
+  <div class="spacer"></div>
+  <div class="stat-chips">
+    <div class="chip"><div class="chip-val" id="stat-apps">0</div><div class="chip-lbl">Apps</div></div>
+    <div class="chip"><div class="chip-val" id="stat-session">0m</div><div class="chip-lbl">Session</div></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Left: app list + timeline -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- App usage list -->
+    <div class="card">
+      <div class="card-title">📊 App Usage This Session</div>
+      <div id="app-list"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="card">
+      <div class="card-title">⏱ Session Timeline</div>
+      <div class="timeline-bar" id="timeline"></div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:4px;">Width = time proportion this session</div>
+    </div>
+
+  </div>
+
+  <!-- Right sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Current app -->
+    <div class="card current-card">
+      <div class="card-title">▶ Currently Active</div>
+      <div class="current-app-name" id="cur-app">—</div>
+      <div class="current-title" id="cur-title">—</div>
+      <div class="current-time" id="cur-timer">0:00:00</div>
+      <div class="current-since" id="cur-since"></div>
+    </div>
+
+    <!-- Donut -->
+    <div class="card">
+      <div class="card-title">🍩 Share of Focus</div>
+      <div class="donut-wrap">
+        <svg id="donut" width="120" height="120" viewBox="0 0 120 120"></svg>
+        <div class="legend" id="donut-legend"></div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  <span>AppWatch v1.0</span>
+  <span>ws://localhost:8768</span>
+  <span id="foot-time"></span>
+</footer>
+
+<script>
+const COLORS = ["#6366f1","#10b981","#f59e0b","#3b82f6","#ec4899","#14b8a6","#f97316","#8b5cf6","#ef4444","#06b6d4"];
+
+let currentAppStart = null;
+let curTimerInterval = null;
+
+function update(d) {
+  const { apps, current_app, current_title, session_secs, total_apps, timestamp } = d;
+
+  // header
+  document.getElementById("badge").textContent = "LIVE";
+  document.getElementById("badge").classList.add("live");
+  document.getElementById("hdr-app").textContent = "▶ " + current_app + (current_title ? "  —  " + current_title : "");
+  document.getElementById("stat-apps").textContent = total_apps;
+  document.getElementById("stat-session").textContent = fmtHMS(session_secs);
+
+  // current app card
+  document.getElementById("cur-app").textContent = current_app || "—";
+  document.getElementById("cur-title").textContent = current_title || "";
+
+  // start live timer for current app
+  const curAppData = apps.find(a => a.name === current_app);
+  if (curAppData) {
+    currentAppStart = Date.now() - curAppData.seconds * 1000;
+    if (!curTimerInterval) {
+      curTimerInterval = setInterval(tickCurTimer, 1000);
+    }
+  }
+
+  // app list
+  const list = document.getElementById("app-list");
+  list.innerHTML = apps.map((a, i) => `
+    <div class="app-row">
+      <div class="app-icon" style="background:${COLORS[i % COLORS.length]}">${a.name.charAt(0).toUpperCase()}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="app-name">${esc(a.name)}</div>
+        <div class="app-time">${a.hms}</div>
+      </div>
+      <div class="app-right">
+        <div class="app-pct" style="color:${COLORS[i%COLORS.length]}">${a.percent}%</div>
+        <div class="app-bar-wrap">
+          <div class="app-bar" style="width:${a.percent}%;background:${COLORS[i%COLORS.length]}"></div>
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  // timeline bar
+  const tl = document.getElementById("timeline");
+  tl.innerHTML = apps.map((a,i) => `
+    <div class="tl-seg" title="${a.name}: ${a.hms}"
+         style="flex:${a.percent};background:${COLORS[i%COLORS.length]}">
+      ${a.percent > 8 ? a.name.slice(0,6) : ""}
+    </div>
+  `).join("");
+
+  // donut
+  drawDonut(apps);
+}
+
+function tickCurTimer() {
+  if (!currentAppStart) return;
+  const secs = Math.floor((Date.now() - currentAppStart) / 1000);
+  document.getElementById("cur-timer").textContent = fmtHMS(secs);
+}
+
+function drawDonut(apps) {
+  const svg = document.getElementById("donut");
+  const legend = document.getElementById("donut-legend");
+  svg.innerHTML = "";
+  legend.innerHTML = "";
+
+  const cx=60, cy=60, r=48, ri=30;
+  const total = apps.reduce((s,a) => s+a.percent, 0) || 1;
+  let angle = -Math.PI/2;
+
+  apps.slice(0,6).forEach((a,i) => {
+    const sweep = (a.percent/total) * Math.PI * 2;
+    const x1 = cx + r*Math.cos(angle), y1 = cy + r*Math.sin(angle);
+    angle += sweep;
+    const x2 = cx + r*Math.cos(angle), y2 = cy + r*Math.sin(angle);
+    const xi1 = cx + ri*Math.cos(angle - sweep), yi1 = cy + ri*Math.sin(angle - sweep);
+    const xi2 = cx + ri*Math.cos(angle), yi2 = cy + ri*Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("d", `M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${xi2},${yi2} A${ri},${ri} 0 ${large},0 ${xi1},${yi1} Z`);
+    path.setAttribute("fill", COLORS[i%COLORS.length]);
+    svg.appendChild(path);
+
+    legend.innerHTML += `
+      <div class="leg-row">
+        <div class="leg-dot" style="background:${COLORS[i%COLORS.length]}"></div>
+        <span class="leg-name">${esc(a.name.slice(0,12))}</span>
+        <span class="leg-pct">${a.percent}%</span>
+      </div>`;
+  });
+}
+
+function fmtHMS(s) {
+  s = Math.floor(s);
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+  if (h) return `${h}:${pad(m)}:${pad(ss)}`;
+  return `${m}:${pad(ss)}`;
+}
+function pad(n){return String(n).padStart(2,"0");}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+
+// clock
+setInterval(()=>{
+  document.getElementById("foot-time").textContent = new Date().toLocaleTimeString();
+},1000);
+
+// WebSocket
+let ws, timer;
+function connect(){
+  ws = new WebSocket("ws://localhost:8768");
+  ws.onmessage = ev => update(JSON.parse(ev.data));
+  ws.onclose   = () => {
+    document.getElementById("badge").textContent = "OFFLINE";
+    document.getElementById("badge").classList.remove("live");
+    timer = setTimeout(connect,2000);
+  };
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>

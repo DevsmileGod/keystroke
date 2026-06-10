@@ -1,0 +1,9 @@
+
+[2026-05-17 08:57:02] type=code  len=395
+🎯 What ClipWatch Shows
+FeatureDetailsLive FeedEvery clipboard copy as a card — click to expand full contentType DetectionAuto-detects URL, Email, Code, Number, Text, ParagraphType BreakdownSidebar bar chart of your copy habitsHistory PanelQuick-access list of all past copiesCopy ButtonRe-copy any entry back to clipboard from the dashboardSession StatsTotal copies, characters, and session time
+────────────────────────────────────────────────────────────
+
+[2026-05-17 09:06:52] type=text  len=8
+fewfewef
+────────────────────────────────────────────────────────────

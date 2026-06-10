@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ClipWatch — Clipboard Monitor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;700;800&display=swap');
+
+:root {
+  --bg:         #0e0e12;
+  --surface:    #15151c;
+  --surface2:   #1c1c26;
+  --border:     #2a2a3a;
+  --accent:     #c084fc;
+  --accent-dim: #7c3aed;
+  --accent-glow:#4c1d95;
+  --gold:       #fbbf24;
+  --teal:       #2dd4bf;
+  --red:        #f87171;
+  --blue:       #60a5fa;
+  --text:       #e2e0f0;
+  --muted:      #5b5b7a;
+  --tag-text:   #0e0e12;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* noise texture overlay */
+body::before {
+  content:'';
+  position:fixed;inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:.4;
+}
+
+/* ── Header ── */
+header {
+  position:relative;z-index:1;
+  display:flex;align-items:center;gap:16px;
+  padding:16px 28px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+}
+
+.logo {
+  font-family:'Syne',sans-serif;
+  font-weight:800;font-size:1.3rem;
+  letter-spacing:.04em;
+  color:var(--accent);
+  text-shadow:0 0 20px rgba(192,132,252,.4);
+}
+.logo em { color:var(--gold); font-style:normal; }
+
+.pill {
+  font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:3px 10px;border-radius:99px;
+  background:var(--accent-glow);color:var(--accent);
+  border:1px solid var(--accent-dim);
+}
+.pill.live { background:#14532d; color:#4ade80; border-color:#166534; }
+
+.spacer{flex:1;}
+
+.hdr-stats {
+  display:flex;gap:24px;
+}
+.hs {
+  text-align:center;
+}
+.hs-val {
+  font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;
+  color:var(--accent);
+}
+.hs-lbl {
+  font-size:.58rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
+}
+
+#conn-status { font-size:.72rem; color:var(--muted); }
+
+/* ── Layout ── */
+main {
+  position:relative;z-index:1;
+  flex:1;display:grid;
+  grid-template-columns:1fr 300px;
+  overflow:hidden;
+  height: calc(100vh - 61px - 36px);
+}
+
+/* ── Feed ── */
+#feed-wrap {
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);
+  overflow:hidden;
+}
+
+.sec-hdr {
+  padding:9px 20px;
+  font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  display:flex;align-items:center;gap:10px;
+}
+.sec-hdr span { flex:1; }
+
+#feed {
+  flex:1;overflow-y:auto;
+  padding:14px 18px;
+  display:flex;flex-direction:column;gap:10px;
+}
+#feed::-webkit-scrollbar{width:4px;}
+#feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── Card ── */
+.card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:12px 14px;
+  display:flex;flex-direction:column;gap:8px;
+  animation:slideIn .18s ease-out;
+  cursor:pointer;
+  transition:border-color .2s,background .2s;
+  position:relative;
+  overflow:hidden;
+}
+.card::before {
+  content:'';
+  position:absolute;left:0;top:0;bottom:0;
+  width:3px;
+  border-radius:3px 0 0 3px;
+}
+.card.text::before   { background:var(--accent); }
+.card.url::before    { background:var(--blue); }
+.card.email::before  { background:var(--teal); }
+.card.code::before   { background:var(--gold); }
+.card.number::before { background:var(--red); }
+.card.paragraph::before { background:var(--muted); }
+.card.system::before { background:#4ade80; }
+
+.card:hover {
+  border-color:var(--accent-dim);
+  background:var(--surface2);
+}
+
+@keyframes slideIn {
+  from{opacity:0;transform:translateY(-8px);}
+  to  {opacity:1;transform:translateY(0);}
+}
+
+.card-top {
+  display:flex;align-items:center;gap:8px;
+}
+
+.type-badge {
+  font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;
+  padding:2px 8px;border-radius:4px;font-weight:500;
+  flex-shrink:0;
+}
+.badge-text      { background:rgba(192,132,252,.15);color:var(--accent); }
+.badge-url       { background:rgba(96,165,250,.15); color:var(--blue); }
+.badge-email     { background:rgba(45,212,191,.15); color:var(--teal); }
+.badge-code      { background:rgba(251,191,36,.15); color:var(--gold); }
+.badge-number    { background:rgba(248,113,113,.15);color:var(--red); }
+.badge-paragraph { background:rgba(91,91,122,.15);  color:var(--muted); }
+.badge-system    { background:rgba(74,222,128,.1);  color:#4ade80; }
+
+.card-time { font-size:.65rem;color:var(--muted);margin-left:auto; }
+.card-len  { font-size:.62rem;color:var(--muted); }
+
+.card-preview {
+  font-size:.82rem;
+  color:var(--text);
+  line-height:1.5;
+  word-break:break-all;
+  white-space:pre-wrap;
+  max-height:72px;
+  overflow:hidden;
+  mask-image:linear-gradient(to bottom,black 60%,transparent 100%);
+}
+.card.expanded .card-preview {
+  max-height:none;
+  mask-image:none;
+}
+
+.card-full {
+  display:none;
+  font-size:.78rem;
+  color:var(--text);
+  line-height:1.6;
+  word-break:break-all;
+  white-space:pre-wrap;
+  background:var(--bg);
+  border-radius:4px;
+  padding:8px 10px;
+  border:1px solid var(--border);
+}
+.card.expanded .card-full { display:block; }
+.card.expanded .card-preview { display:none; }
+
+.copy-btn {
+  align-self:flex-end;
+  font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 10px;border-radius:4px;
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);cursor:pointer;
+  transition:all .2s;display:none;
+  font-family:'DM Mono',monospace;
+}
+.card.expanded .copy-btn { display:block; }
+.copy-btn:hover { border-color:var(--accent);color:var(--accent); }
+
+/* ── Sidebar ── */
+#sidebar {
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+/* type breakdown */
+#types-wrap {
+  border-bottom:1px solid var(--border);
+}
+#types {
+  padding:12px 14px;
+  display:flex;flex-direction:column;gap:7px;
+}
+.type-row {
+  display:flex;align-items:center;gap:8px;
+  font-size:.75rem;
+}
+.type-row-label { width:70px;color:var(--muted);text-transform:uppercase;font-size:.62rem;letter-spacing:.08em; }
+.type-bar-wrap { flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden; }
+.type-bar      { height:100%;border-radius:3px;transition:width .4s ease; }
+.type-row-cnt  { width:24px;text-align:right;color:var(--text);font-size:.72rem; }
+
+/* Recent large copies */
+#recent-wrap { flex:1;display:flex;flex-direction:column;overflow:hidden; }
+#recent {
+  flex:1;overflow-y:auto;
+  padding:10px 14px;
+  display:flex;flex-direction:column;gap:6px;
+}
+#recent::-webkit-scrollbar{width:3px;}
+#recent::-webkit-scrollbar-thumb{background:var(--border);}
+
+.mini-entry {
+  padding:6px 10px;
+  background:var(--surface2);
+  border-radius:5px;
+  font-size:.72rem;
+  color:var(--muted);
+  border:1px solid var(--border);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;
+  transition:color .2s;
+}
+.mini-entry:hover { color:var(--text); }
+.mini-entry strong { color:var(--accent);margin-right:6px; }
+
+/* ── Empty state ── */
+#empty-state {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;gap:10px;
+  color:var(--muted);font-size:.8rem;letter-spacing:.06em;
+}
+#empty-state .big { font-size:2.8rem;opacity:.2; }
+
+/* ── Footer ── */
+footer {
+  position:relative;z-index:1;
+  padding:7px 20px;
+  border-top:1px solid var(--border);
+  font-size:.62rem;color:var(--muted);letter-spacing:.06em;
+  background:var(--surface);
+  display:flex;gap:24px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Clip<em>Watch</em></div>
+  <div class="pill" id="status-pill">OFFLINE</div>
+  <div id="conn-status">Connecting to ws://localhost:8766…</div>
+  <div class="spacer"></div>
+  <div class="hdr-stats">
+    <div class="hs"><div class="hs-val" id="cnt-total">0</div><div class="hs-lbl">Copies</div></div>
+    <div class="hs"><div class="hs-val" id="cnt-chars">0</div><div class="hs-lbl">Chars</div></div>
+    <div class="hs"><div class="hs-val" id="cnt-session">0m</div><div class="hs-lbl">Session</div></div>
+  </div>
+</header>
+
+<main>
+  <!-- Feed -->
+  <div id="feed-wrap">
+    <div class="sec-hdr">
+      <span>▶ Clipboard Feed</span>
+      <span id="feed-count" style="color:var(--muted);font-size:.6rem;"></span>
+    </div>
+    <div id="feed">
+      <div id="empty-state">
+        <div class="big">📋</div>
+        <div>No clipboard activity yet</div>
+        <div style="font-size:.68rem;margin-top:4px;">Copy anything — text, URLs, code…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="types-wrap">
+      <div class="sec-hdr"><span>■ Type Breakdown</span></div>
+      <div id="types">
+        <div class="type-row" id="row-text">
+          <span class="type-row-label">Text</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--accent);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+        <div class="type-row" id="row-url">
+          <span class="type-row-label">URL</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--blue);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+        <div class="type-row" id="row-code">
+          <span class="type-row-label">Code</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--gold);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+        <div class="type-row" id="row-email">
+          <span class="type-row-label">Email</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--teal);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+        <div class="type-row" id="row-number">
+          <span class="type-row-label">Number</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--red);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+        <div class="type-row" id="row-paragraph">
+          <span class="type-row-label">Long Text</span>
+          <div class="type-bar-wrap"><div class="type-bar" style="background:var(--muted);width:0%"></div></div>
+          <span class="type-row-cnt">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="recent-wrap">
+      <div class="sec-hdr"><span>✦ History</span></div>
+      <div id="recent"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>ClipWatch v1.0</span>
+  <span>ws://localhost:8766</span>
+  <span id="foot-time"></span>
+</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let totalCopies = 0;
+let totalChars  = 0;
+let typeCounts  = { text:0, url:0, code:0, email:0, number:0, paragraph:0, system:0 };
+let sessionStart = Date.now();
+let ws, reconnectTimer;
+let history = [];  // all entries
+
+// ── DOM ────────────────────────────────────────────────────
+const feed       = document.getElementById("feed");
+const emptyState = document.getElementById("empty-state");
+const recent     = document.getElementById("recent");
+const pill       = document.getElementById("status-pill");
+const connStatus = document.getElementById("conn-status");
+
+// ── WebSocket ──────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket("ws://localhost:8766");
+
+  ws.onopen = () => {
+    pill.textContent = "LIVE";
+    pill.classList.add("live");
+    connStatus.textContent = "Connected — watching clipboard…";
+    connStatus.style.color = "#4ade80";
+    clearTimeout(reconnectTimer);
+  };
+
+  ws.onmessage = ev => {
+    const data = JSON.parse(ev.data);
+    handleEntry(data);
+  };
+
+  ws.onclose = () => {
+    pill.textContent = "OFFLINE";
+    pill.classList.remove("live");
+    connStatus.textContent = "Disconnected — retrying…";
+    connStatus.style.color = "var(--red)";
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+// ── Handle entry ───────────────────────────────────────────
+function handleEntry(data) {
+  if (emptyState.parentNode) emptyState.remove();
+
+  const { content, type, length, timestamp, preview } = data;
+
+  // stats
+  if (type !== "system") {
+    totalCopies++;
+    totalChars += length;
+    typeCounts[type] = (typeCounts[type] || 0) + 1;
+    document.getElementById("cnt-total").textContent = totalCopies;
+    document.getElementById("cnt-chars").textContent = fmtNum(totalChars);
+    updateTypeBars();
+  }
+
+  history.unshift(data);
+
+  // build card
+  const card = document.createElement("div");
+  card.className = `card ${type}`;
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="type-badge badge-${type}">${type}</span>
+      <span class="card-len">${type !== "system" ? length + " chars" : ""}</span>
+      <span class="card-time">${timestamp}</span>
+    </div>
+    <div class="card-preview">${escHtml(preview)}</div>
+    <div class="card-full">${escHtml(content)}</div>
+    <button class="copy-btn" onclick="copyToClipboard(this, ${JSON.stringify(content)})">⎘ Copy</button>
+  `;
+
+  card.addEventListener("click", e => {
+    if (e.target.classList.contains("copy-btn")) return;
+    card.classList.toggle("expanded");
+  });
+
+  feed.insertBefore(card, feed.firstChild);
+
+  // mini history entry
+  if (type !== "system") {
+    const mini = document.createElement("div");
+    mini.className = "mini-entry";
+    mini.innerHTML = `<strong>${timestamp}</strong>${escHtml(preview.slice(0, 50))}`;
+    mini.onclick = () => card.scrollIntoView({ behavior: "smooth", block: "center" });
+    recent.insertBefore(mini, recent.firstChild);
+    if (recent.children.length > 30) recent.lastChild.remove();
+  }
+
+  document.getElementById("feed-count").textContent =
+    totalCopies > 0 ? `${totalCopies} entries` : "";
+}
+
+// ── Type bars ──────────────────────────────────────────────
+function updateTypeBars() {
+  const max = Math.max(...Object.values(typeCounts), 1);
+  ["text","url","code","email","number","paragraph"].forEach(t => {
+    const row = document.getElementById("row-" + t);
+    if (!row) return;
+    const cnt = typeCounts[t] || 0;
+    row.querySelector(".type-bar").style.width = (cnt / max * 100) + "%";
+    row.querySelector(".type-row-cnt").textContent = cnt;
+  });
+}
+
+// ── Session timer ──────────────────────────────────────────
+setInterval(() => {
+  const mins = Math.floor((Date.now() - sessionStart) / 60000);
+  document.getElementById("cnt-session").textContent =
+    mins < 60 ? mins + "m" : Math.floor(mins/60) + "h" + (mins%60) + "m";
+}, 10000);
+
+// ── Clock ──────────────────────────────────────────────────
+function tick() {
+  document.getElementById("foot-time").textContent =
+    new Date().toLocaleTimeString();
+}
+setInterval(tick, 1000); tick();
+
+// ── Utils ──────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function fmtNum(n) {
+  return n >= 1000 ? (n/1000).toFixed(1)+"k" : n;
+}
+function copyToClipboard(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => btn.textContent = "⎘ Copy", 1500);
+  });
+}
+
+// ── Boot ──────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>

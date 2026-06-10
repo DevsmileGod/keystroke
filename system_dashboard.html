@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SysWatch — System Health</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;600;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg:       #080b10;
+  --panel:    #0d1117;
+  --panel2:   #131920;
+  --border:   #1e2d3d;
+  --cpu:      #f97316;
+  --ram:      #22d3ee;
+  --disk:     #a78bfa;
+  --net-up:   #4ade80;
+  --net-dn:   #fb7185;
+  --text:     #cdd9e5;
+  --muted:    #4a6070;
+  --danger:   #ef4444;
+  --warn:     #f59e0b;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  font-size:13px;
+}
+
+/* ── Header ── */
+header {
+  display:flex;align-items:center;gap:14px;
+  padding:14px 24px;
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+}
+.logo {
+  font-family:'Oxanium',sans-serif;
+  font-weight:800;font-size:1.25rem;letter-spacing:.08em;
+  color:var(--cpu);
+  text-shadow:0 0 16px rgba(249,115,22,.35);
+}
+.logo span { color:var(--text); }
+.live-dot {
+  width:8px;height:8px;border-radius:50%;
+  background:var(--muted);
+  box-shadow:0 0 6px var(--muted);
+  animation:pulse 1.4s ease-in-out infinite;
+}
+.live-dot.on { background:var(--net-up); box-shadow:0 0 8px var(--net-up); }
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+#hdr-status { font-size:.68rem;color:var(--muted);letter-spacing:.06em; }
+.spacer{flex:1;}
+#hdr-time {
+  font-family:'Oxanium',sans-serif;font-size:.9rem;
+  color:var(--muted);letter-spacing:.1em;
+}
+
+/* ── Grid ── */
+main {
+  flex:1;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr 1fr;
+  grid-template-rows:auto auto 1fr;
+  gap:1px;
+  background:var(--border);
+  overflow:hidden;
+}
+
+.cell {
+  background:var(--panel);
+  padding:16px 18px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.cell-title {
+  font-family:'Oxanium',sans-serif;
+  font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);
+  display:flex;align-items:center;gap:8px;
+}
+.cell-title::before {
+  content:'';display:inline-block;
+  width:6px;height:6px;border-radius:1px;
+  background:currentColor;
+}
+
+/* ── Big Gauge ── */
+.gauge-wrap {
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+.gauge-svg { overflow:visible; }
+.gauge-track { fill:none; stroke:var(--border); stroke-width:8; stroke-linecap:round; }
+.gauge-fill  { fill:none; stroke-width:8; stroke-linecap:round;
+               transition:stroke-dashoffset .7s ease, stroke .4s; }
+.gauge-val {
+  font-family:'Oxanium',sans-serif;font-weight:800;font-size:1.6rem;
+  text-anchor:middle;dominant-baseline:middle;
+}
+.gauge-lbl {
+  font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;
+  text-anchor:middle;dominant-baseline:middle;
+  fill:var(--muted);
+}
+
+/* ── Bar ── */
+.bar-row { display:flex;flex-direction:column;gap:4px; }
+.bar-label {
+  display:flex;justify-content:space-between;
+  font-size:.7rem;color:var(--muted);
+}
+.bar-label span:last-child { color:var(--text); }
+.bar-track {
+  height:5px;background:var(--border);border-radius:3px;overflow:hidden;
+}
+.bar-fill {
+  height:100%;border-radius:3px;
+  transition:width .6s ease, background .4s;
+}
+
+/* ── Big number ── */
+.big-num {
+  font-family:'Oxanium',sans-serif;font-weight:800;
+  font-size:2.2rem;line-height:1;
+}
+.big-unit { font-size:.75rem;color:var(--muted);margin-left:3px; }
+.sub-row {
+  display:flex;gap:16px;
+  font-size:.68rem;color:var(--muted);
+}
+.sub-row b { color:var(--text); }
+
+/* ── Network sparkline ── */
+.spark-wrap { flex:1;position:relative;min-height:60px; }
+canvas.spark { width:100%;height:100%;display:block; }
+
+/* ── Core grid ── */
+.core-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(38px,1fr));
+  gap:5px;
+}
+.core-tile {
+  background:var(--panel2);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:5px 4px;
+  text-align:center;
+  font-size:.58rem;
+  color:var(--muted);
+}
+.core-tile-val {
+  font-family:'Oxanium',sans-serif;font-weight:600;
+  font-size:.75rem;color:var(--text);
+  display:block;margin-bottom:2px;
+}
+
+/* ── Process table ── */
+.proc-table {
+  width:100%;border-collapse:collapse;font-size:.7rem;
+}
+.proc-table th {
+  color:var(--muted);font-weight:400;letter-spacing:.08em;
+  text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);
+  font-size:.6rem;text-transform:uppercase;
+}
+.proc-table td {
+  padding:5px 6px;border-bottom:1px solid rgba(30,45,61,.5);
+  color:var(--text);
+}
+.proc-table tr:hover td { background:var(--panel2); }
+.proc-cpu { color:var(--cpu); }
+.proc-mem { color:var(--ram); }
+
+/* cell spanning */
+.span2 { grid-column:span 2; }
+.span4 { grid-column:span 4; }
+.span3 { grid-column:span 3; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sys<span>Watch</span></div>
+  <div class="live-dot" id="dot"></div>
+  <div id="hdr-status">CONNECTING…</div>
+  <div class="spacer"></div>
+  <div id="hdr-time">--:--:--</div>
+</header>
+
+<main>
+
+  <!-- CPU Gauge -->
+  <div class="cell">
+    <div class="cell-title" style="color:var(--cpu)">CPU Usage</div>
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" width="130" height="80" viewBox="0 0 130 80">
+        <path class="gauge-track" d="M15,75 A55,55 0 0,1 115,75"/>
+        <path class="gauge-fill" id="cpu-arc" stroke="var(--cpu)"
+              d="M15,75 A55,55 0 0,1 115,75"
+              stroke-dasharray="172" stroke-dashoffset="172"/>
+        <text class="gauge-val" id="cpu-val" x="65" y="62" fill="var(--cpu)">0%</text>
+        <text class="gauge-lbl" x="65" y="76" fill="var(--muted)">PROCESSOR</text>
+      </svg>
+    </div>
+    <div class="sub-row">
+      <span><b id="cpu-freq">0</b> MHz</span>
+      <span><b id="cpu-cores-count">0</b> cores</span>
+    </div>
+  </div>
+
+  <!-- RAM Gauge -->
+  <div class="cell">
+    <div class="cell-title" style="color:var(--ram)">Memory</div>
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" width="130" height="80" viewBox="0 0 130 80">
+        <path class="gauge-track" d="M15,75 A55,55 0 0,1 115,75"/>
+        <path class="gauge-fill" id="ram-arc" stroke="var(--ram)"
+              d="M15,75 A55,55 0 0,1 115,75"
+              stroke-dasharray="172" stroke-dashoffset="172"/>
+        <text class="gauge-val" id="ram-val" x="65" y="62" fill="var(--ram)">0%</text>
+        <text class="gauge-lbl" x="65" y="76">RAM</text>
+      </svg>
+    </div>
+    <div class="sub-row">
+      <span><b id="ram-used">0</b> GB used</span>
+      <span><b id="ram-total">0</b> GB total</span>
+    </div>
+  </div>
+
+  <!-- Disk Gauge -->
+  <div class="cell">
+    <div class="cell-title" style="color:var(--disk)">Disk</div>
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" width="130" height="80" viewBox="0 0 130 80">
+        <path class="gauge-track" d="M15,75 A55,55 0 0,1 115,75"/>
+        <path class="gauge-fill" id="disk-arc" stroke="var(--disk)"
+              d="M15,75 A55,55 0 0,1 115,75"
+              stroke-dasharray="172" stroke-dashoffset="172"/>
+        <text class="gauge-val" id="disk-val" x="65" y="62" fill="var(--disk)">0%</text>
+        <text class="gauge-lbl" x="65" y="76">STORAGE</text>
+      </svg>
+    </div>
+    <div class="sub-row">
+      <span><b id="disk-used">0</b> GB used</span>
+      <span><b id="disk-free">0</b> GB free</span>
+    </div>
+  </div>
+
+  <!-- Network live -->
+  <div class="cell">
+    <div class="cell-title" style="color:var(--net-up)">Network</div>
+    <div style="display:flex;gap:14px;margin-top:4px;">
+      <div>
+        <div style="font-size:.58rem;color:var(--net-up);letter-spacing:.08em;">▲ UPLOAD</div>
+        <div class="big-num" id="net-up" style="color:var(--net-up)">0<span class="big-unit">KB/s</span></div>
+      </div>
+      <div>
+        <div style="font-size:.58rem;color:var(--net-dn);letter-spacing:.08em;">▼ DOWNLOAD</div>
+        <div class="big-num" id="net-dn" style="color:var(--net-dn)">0<span class="big-unit">KB/s</span></div>
+      </div>
+    </div>
+    <div class="sub-row" style="margin-top:auto;">
+      <span>Total ↑ <b id="net-total-up">0</b> MB</span>
+      <span>Total ↓ <b id="net-total-dn">0</b> MB</span>
+    </div>
+  </div>
+
+  <!-- CPU cores -->
+  <div class="cell span2">
+    <div class="cell-title" style="color:var(--cpu)">CPU Cores</div>
+    <div class="core-grid" id="core-grid"></div>
+  </div>
+
+  <!-- Network sparkline -->
+  <div class="cell span2">
+    <div class="cell-title" style="color:var(--net-up)">Network History (60s)</div>
+    <div class="spark-wrap">
+      <canvas id="spark" class="spark"></canvas>
+    </div>
+  </div>
+
+  <!-- Processes -->
+  <div class="cell span4">
+    <div class="cell-title">Top Processes</div>
+    <table class="proc-table">
+      <thead>
+        <tr>
+          <th>PID</th><th>Name</th>
+          <th>CPU %</th><th>MEM %</th>
+          <th style="width:40%">CPU Bar</th>
+        </tr>
+      </thead>
+      <tbody id="proc-body"></tbody>
+    </table>
+  </div>
+
+</main>
+
+<script>
+// ── Gauge helper ────────────────────────────────────────────
+function setGauge(id, pct) {
+  const arc = document.getElementById(id);
+  const total = 172;
+  const offset = total - (Math.min(pct,100) / 100) * total;
+  arc.style.strokeDashoffset = offset;
+  // color shift on high usage
+  if (pct > 85) arc.style.stroke = "var(--danger)";
+  else if (pct > 65) arc.style.stroke = "var(--warn)";
+  else arc.style.stroke = arc.getAttribute("stroke") || arc.style.stroke;
+}
+
+// ── Sparkline ───────────────────────────────────────────────
+const MAX_POINTS = 60;
+const upHistory  = new Array(MAX_POINTS).fill(0);
+const dnHistory  = new Array(MAX_POINTS).fill(0);
+
+function drawSpark() {
+  const canvas = document.getElementById("spark");
+  const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,W,H);
+
+  const maxVal = Math.max(...upHistory, ...dnHistory, 1);
+
+  function drawLine(data, color) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    data.forEach((v,i) => {
+      const x = (i / (MAX_POINTS-1)) * W;
+      const y = H - (v / maxVal) * (H - 4) - 2;
+      i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    // fill
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fillStyle = color.replace(")",", 0.08)").replace("rgb","rgba").replace("#","rgba(").replace("var(--net-up)","rgba(74,222,128,0.08)").replace("var(--net-dn)","rgba(251,113,133,0.08)");
+    ctx.fill();
+  }
+
+  // grid lines
+  ctx.strokeStyle = "rgba(30,45,61,.6)";
+  ctx.lineWidth = 1;
+  [0.25,0.5,0.75].forEach(f => {
+    const y = H - f*H;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  });
+
+  drawLine(dnHistory, "var(--net-dn)");
+  drawLine(upHistory, "var(--net-up)");
+
+  // legend
+  ctx.font = "10px JetBrains Mono";
+  ctx.fillStyle = "rgba(74,222,128,.7)"; ctx.fillText("▲ UP",6,14);
+  ctx.fillStyle = "rgba(251,113,133,.7)"; ctx.fillText("▼ DN",46,14);
+  ctx.fillStyle = "rgba(74,96,112,.7)";
+  ctx.fillText(fmtKB(maxVal)+" max", W-64, 14);
+}
+
+// ── Update from data ────────────────────────────────────────
+function update(d) {
+  const { cpu, ram, disk, network, processes, timestamp } = d;
+
+  // Header
+  document.getElementById("dot").classList.add("on");
+  document.getElementById("hdr-status").textContent = "LIVE — " + timestamp;
+
+  // CPU
+  setGauge("cpu-arc", cpu.total);
+  document.getElementById("cpu-val").textContent  = cpu.total + "%";
+  document.getElementById("cpu-freq").textContent = cpu.freq;
+  document.getElementById("cpu-cores-count").textContent = cpu.count;
+
+  // RAM
+  setGauge("ram-arc", ram.percent);
+  document.getElementById("ram-val").textContent   = ram.percent + "%";
+  document.getElementById("ram-used").textContent  = ram.used_gb;
+  document.getElementById("ram-total").textContent = ram.total_gb;
+
+  // Disk
+  setGauge("disk-arc", disk.percent);
+  document.getElementById("disk-val").textContent  = disk.percent + "%";
+  document.getElementById("disk-used").textContent = disk.used_gb;
+  document.getElementById("disk-free").textContent = disk.free_gb;
+
+  // Network
+  document.getElementById("net-up").innerHTML  = fmtKB(network.sent_kb) + '<span class="big-unit">KB/s</span>';
+  document.getElementById("net-dn").innerHTML  = fmtKB(network.recv_kb) + '<span class="big-unit">KB/s</span>';
+  document.getElementById("net-total-up").textContent = network.total_sent_mb;
+  document.getElementById("net-total-dn").textContent = network.total_recv_mb;
+
+  upHistory.push(network.sent_kb); upHistory.shift();
+  dnHistory.push(network.recv_kb); dnHistory.shift();
+  drawSpark();
+
+  // Cores
+  const grid = document.getElementById("core-grid");
+  grid.innerHTML = "";
+  cpu.cores.forEach((c,i) => {
+    const col = c > 85 ? "var(--danger)" : c > 60 ? "var(--warn)" : "var(--cpu)";
+    grid.innerHTML += `
+      <div class="core-tile">
+        <span class="core-tile-val" style="color:${col}">${c}%</span>
+        C${i}
+      </div>`;
+  });
+
+  // Processes
+  const tbody = document.getElementById("proc-body");
+  tbody.innerHTML = processes.map(p => `
+    <tr>
+      <td style="color:var(--muted)">${p.pid}</td>
+      <td>${p.name}</td>
+      <td class="proc-cpu">${p.cpu}%</td>
+      <td class="proc-mem">${p.mem}%</td>
+      <td>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${Math.min(p.cpu,100)}%;background:var(--cpu)"></div>
+        </div>
+      </td>
+    </tr>`).join("");
+}
+
+function fmtKB(n) { return n >= 1000 ? (n/1024).toFixed(1)+"M" : n; }
+
+// ── Clock ───────────────────────────────────────────────────
+setInterval(()=>{
+  document.getElementById("hdr-time").textContent =
+    new Date().toLocaleTimeString();
+}, 1000);
+
+// ── WebSocket ───────────────────────────────────────────────
+let ws, timer;
+function connect() {
+  ws = new WebSocket("ws://localhost:8767");
+  ws.onmessage = ev => update(JSON.parse(ev.data));
+  ws.onclose   = () => {
+    document.getElementById("dot").classList.remove("on");
+    document.getElementById("hdr-status").textContent = "DISCONNECTED — retrying…";
+    timer = setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+}
+connect();
+</script>
+</body>
+</html>
