@@ -1,5 +1,5 @@
 # Keystroke & System Monitor Toolkit
-
+Elena supporeted me
 A lightweight Windows monitoring toolkit for capturing keystrokes, clipboard activity, active applications, and live system resource usage. Each monitor streams updates to its own dashboard HTML file and saves logs locally for later review.
 
 ## What this project includes
